@@ -47,7 +47,6 @@ public class BaseClass
 
         try
         {
-            driver.manage().window().maximize();
             driver.get(Config.get("baseUrl"));
             Log.info("Launched " + browser + " browser");
         }
@@ -70,11 +69,20 @@ public class BaseClass
 
     /* Suppresses Chrome's native password-manager prompts (breach warning, save-password, leak detection) and notification popups.
        These are real browser UI, not page elements, and sit on top of the page,
-       blocking Selenium's clicks/typing on whatever is underneath until dismissed. */
+       blocking Selenium's clicks/typing on whatever is underneath until dismissed.
+
+       --window-size, not driver.manage().window().maximize(): maximize()
+       needs a CDP round-trip to actually resize the OS-level window, which
+       requires a real window manager - under a CI runner's virtual display
+       (xvfb, no window manager) that round-trip can fail outright
+       ("unknown command: 'Runtime.evaluate' wasn't found"). A fixed launch
+       size sets the window at startup with no CDP call involved, so it
+       works the same way locally and in CI. */
 
     private ChromeOptions chromeOptions()
     {
         ChromeOptions options = new ChromeOptions();
+        options.addArguments("--window-size=1920,1080");
         options.addArguments("--disable-notifications");
         Map<String, Object> prefs = new HashMap<>();
         prefs.put("credentials_enable_service", false);
