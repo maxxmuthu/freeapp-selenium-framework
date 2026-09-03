@@ -1,0 +1,10 @@
+target/
+test-output/
+Logs/
+*.class
+*.log
+.idea/
+*.iml
+out/
+.vscode/
+.DS_Store

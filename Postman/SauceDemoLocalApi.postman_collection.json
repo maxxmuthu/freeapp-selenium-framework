@@ -1,0 +1,111 @@
+{
+  "info": {
+    "name": "SauceDemo Local API",
+    "description": "This hits LocalApiServer, not saucedemo.com itself - saucedemo.com has no real API, so this project runs its own tiny local one (the same reason a local SQLite file stands in for a real DB elsewhere in this project). Before sending any request here, run LocalApiServer's main() from your IDE (right-click LocalApiServer.java -> Run) and leave it running - these requests only work while that's up, at http://localhost:9090.\n\nThis API is token-protected, the same way a real one is: /products won't return anything until you first exchange a client ID/secret for an access token, then send that token back on every later request. Run the requests in this collection top to bottom - '1) Get access token' saves the token into a collection variable automatically, and every request after it reuses that variable, so you don't have to copy/paste anything by hand.\n\nWhat to look at in each response: click 'Send', then look at the 'Body' tab at the bottom - that raw text is JSON. JSON is just labeled data, the same idea as a spreadsheet row or a database row, written as key : value pairs inside { } (an object) or a list of those inside [ ] (an array). '\"price\": \"$29.99\"' means the key 'price' has the value '$29.99' - that's the whole trick to reading it.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0) Try products with no token (expect 401)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:9090/products",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "9090",
+          "path": ["products"]
+        },
+        "description": "Send this first, before getting a token - it comes back 401 { \"error\": \"Missing, invalid, or expired access token\" }. This is the point: a real API doesn't hand out data to anyone who asks, only to a caller that proves who it is first. Status 401 means 'Unauthorized' - you'll see this number in the top-right of the response panel next to 'Send'."
+      }
+    },
+    {
+      "name": "1) Get access token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('token', body.access_token);",
+              "pm.test('got a token', () => pm.expect(body.access_token).to.be.a('string'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"clientId\": \"freeapp-client\",\n  \"clientSecret\": \"freeapp-secret\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:9090/auth/token",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "9090",
+          "path": ["auth", "token"]
+        },
+        "description": "This is the OAuth2 'client credentials' grant - one app (this test framework) proving its identity to another app's API with an ID/secret pair, no human login involved. clientId/clientSecret here match Configuration/config.properties' api.clientId/api.clientSecret - the same values ApiClient.java reads in Java.\n\nResponse: { \"access_token\": \"<a random token>\", \"expires_in\": 60 }. The little script attached to this request (see the 'Tests' or 'Scripts' tab) automatically copies access_token into a collection variable called 'token', so requests 2 and 3 below can reuse it via {{token}} without you copying anything by hand. The token expires after 60 seconds - if the later requests start failing with 401, just re-send this one to get a fresh token."
+      }
+    },
+    {
+      "name": "2) Get all products (with token)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "http://localhost:9090/products",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "9090",
+          "path": ["products"]
+        },
+        "description": "Same request as '0)' above, but this time with 'Authorization: Bearer {{token}}' on it (check the 'Headers' tab to see it) - now it returns 200 and the real JSON array of all 6 products: [ {...}, {...}, ... ]. Each { } inside the [ ] is one product, same shape as one row of Api/products.json."
+      }
+    },
+    {
+      "name": "3) Get one product (found)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "http://localhost:9090/products/Sauce Labs Backpack",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "9090",
+          "path": ["products", "Sauce Labs Backpack"]
+        },
+        "description": "Returns one product as a single JSON object: { \"name\": \"Sauce Labs Backpack\", \"price\": \"$29.99\" }. This is exactly what ApiClient.getPrice(\"Sauce Labs Backpack\") does in Java - get a token, attach it as a Bearer header, GET the product - Postman just lets you see the raw response with your own eyes instead of trusting the Java code. Change the product name at the end of the URL to any name from Api/products.json to look up a different one."
+      }
+    },
+    {
+      "name": "4) Get one product (not found)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "http://localhost:9090/products/Made Up Product",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "9090",
+          "path": ["products", "Made Up Product"]
+        },
+        "description": "A valid token, but there's no product with this name in Api/products.json, so this comes back 404 { \"error\": \"Product not found\" }. Compare this to request '0)' above: 401 means 'I don't know who you are', 404 means 'I know who you are, but that thing doesn't exist' - two different failure reasons a real API always keeps separate."
+      }
+    }
+  ]
+}

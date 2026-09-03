@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!-- parallel="methods": every @Test method in the suite runs in its own thread, up to thread-count concurrently.
+     This is what actually exercises BaseClass's ThreadLocal<WebDriver> - each thread gets its own browser instance. -->
+<suite name="FreeApp Test Suite" parallel="methods" thread-count="3">
+    <listeners>
+        <listener class-name="com.freeapp.utility.TestNGListener"/>
+    </listeners>
+    <test name="Module Tests">
+        <classes>
+            <class name="com.test.freeapp.module.LoginTest"/>
+            <class name="com.test.freeapp.module.InventoryTest"/>
+            <class name="com.test.freeapp.module.DatabaseTest"/>
+            <class name="com.test.freeapp.module.ApiTest"/>
+        </classes>
+    </test>
+    <test name="E2E Tests">
+        <classes>
+            <class name="com.test.freeapp.e2e.CheckoutE2ETest"/>
+        </classes>
+    </test>
+</suite>
