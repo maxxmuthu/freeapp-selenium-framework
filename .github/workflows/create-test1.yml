@@ -10,7 +10,18 @@ on:
 
 jobs:
   selenium-tests:
+    # "runs-on" is which hosted machine GitHub gives this job - the test
+    # suite never actually runs on your own laptop in CI, only on this
+    # remote runner (that's also why xvfb below is needed - a real desktop
+    # doesn't need a virtual display, but a remote runner has no screen at
+    # all). ubuntu-latest is the standard default: on public repos every
+    # OS below is free with unlimited minutes; on private repos, Actions
+    # minutes bill per OS - Linux at the base (1x) rate, Windows at 2x,
+    # macOS at 10x - so Ubuntu is the default unless a job specifically
+    # needs Windows- or macOS-only behavior.
     runs-on: ubuntu-latest
+    # runs-on: windows-latest
+    # runs-on: macos-latest
 
     steps:
       - name: Checkout code
