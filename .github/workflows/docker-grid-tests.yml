@@ -1,0 +1,71 @@
+# Comparison pipeline to create-test1.yml: instead of Chrome running
+# directly on the runner under xvfb, this spins up a real Selenium Grid
+# (hub + node-chrome) as GitHub Actions "service containers" and routes
+# the same test suite through RemoteWebDriver against it. Manual trigger
+# only (not on every push) - it isn't the primary CI gate, it exists to
+# demonstrate the Docker/Grid execution path in a real CI run.
+
+name: FreeApp Selenium Test Suite - Docker Grid (comparison)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  selenium-tests-docker-grid:
+    runs-on: ubuntu-latest
+
+    # Service containers run alongside this job for its whole duration.
+    # They reach each other by service name (selenium-hub) over a Docker
+    # network GitHub creates automatically; the job's own steps (which run
+    # directly on the runner, not in a container) reach them via
+    # localhost on each service's mapped port.
+    services:
+      selenium-hub:
+        image: selenium/hub:4.18.1-20240224
+        ports:
+          - 4442:4442
+          - 4443:4443
+          - 4444:4444
+      chrome:
+        image: selenium/node-chrome:4.18.1-20240224
+        options: --shm-size=2g
+        env:
+          SE_EVENT_BUS_HOST: selenium-hub
+          SE_EVENT_BUS_PUBLISH_PORT: 4442
+          SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+          SE_NODE_MAX_SESSIONS: 3
+          SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # The node registers with the hub asynchronously after both
+      # containers start - polling /status instead of a fixed sleep avoids
+      # racing a test run against a node that hasn't registered yet.
+      - name: Wait for the Grid to report ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4444/wd/hub/status | grep -q '"ready": *true'; then
+              echo "Grid ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Grid did not become ready in time"
+          exit 1
+
+      # config.properties defaults to executionMode=local for normal local
+      # runs (see BaseClass.launchBrowser()) - flip it for this job only,
+      # the checked-in default is untouched.
+      - name: Point tests at the Docker Grid instead of a local browser
+        run: sed -i 's/executionMode=local/executionMode=remote/' Configuration/config.properties
+
+      - name: Run tests
+        run: mvn test

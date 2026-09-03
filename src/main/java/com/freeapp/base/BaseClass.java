@@ -9,7 +9,12 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
 
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,15 +28,21 @@ public class BaseClass
 {
     private static final ThreadLocal<WebDriver> driverThreadLocal = new ThreadLocal<>();
 
-    /* browser and baseUrl come from Configuration/config.properties via
-       Config, so switching either doesn't require touching this class. */
+    /* browser, baseUrl, executionMode and gridUrl come from
+       Configuration/config.properties via Config, so switching any of them
+       doesn't require touching this class. */
 
     public void launchBrowser()
     {
         /* WebDriverManager.chromedriver().setup(); */
         String browser = Config.get("browser");
+        String executionMode = Config.get("executionMode");
         WebDriver driver;
-        if (browser.equalsIgnoreCase("chrome"))
+        if (executionMode.equalsIgnoreCase("remote"))
+        {
+            driver = remoteDriver(browser);
+        }
+        else if (browser.equalsIgnoreCase("chrome"))
         {
             driver = new ChromeDriver(chromeOptions());
         }
@@ -78,6 +89,41 @@ public class BaseClass
        ("unknown command: 'Runtime.evaluate' wasn't found"). A fixed launch
        size sets the window at startup with no CDP call involved, so it
        works the same way locally and in CI. */
+
+    /* Points Selenium at a Grid hub (either docker-compose.yml locally, or
+       CI's own services: block) instead of launching a local browser
+       process - same ChromeOptions as the local path, since the Grid node
+       runs a real (non-headless) Chrome behind its own display and hits
+       the same password-manager popup. */
+
+    private WebDriver remoteDriver(String browser)
+    {
+        /* URI.create(...).toURL(), not new URL(String) directly - the
+           single-String URL constructor is deprecated (JDK 20+) in favor
+           of parsing as a URI first. */
+        URL gridUrl;
+        try
+        {
+            gridUrl = URI.create(Config.get("gridUrl")).toURL();
+        }
+        catch (IllegalArgumentException | MalformedURLException e)
+        {
+            throw new RuntimeException("Invalid gridUrl in config.properties", e);
+        }
+
+        if (browser.equalsIgnoreCase("chrome"))
+        {
+            return new RemoteWebDriver(gridUrl, chromeOptions());
+        }
+        else if (browser.equalsIgnoreCase("firefox"))
+        {
+            return new RemoteWebDriver(gridUrl, new FirefoxOptions());
+        }
+        else
+        {
+            throw new IllegalArgumentException("Unsupported browser: " + browser);
+        }
+    }
 
     private ChromeOptions chromeOptions()
     {
